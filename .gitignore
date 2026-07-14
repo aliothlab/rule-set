@@ -1,0 +1,6 @@
+# local tooling / temp
+*.tmp
+*.log
+.DS_Store
+__pycache__/
+/tmp/
