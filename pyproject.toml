@@ -1,0 +1,9 @@
+[project]
+name = "rule-set"
+version = "0"
+description = "CN rule-sets for sing-box (+ dae)"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.uv]
+package = false

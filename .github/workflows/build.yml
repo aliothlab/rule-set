@@ -1,0 +1,68 @@
+name: Build rule-sets
+
+on:
+  schedule:
+    - cron: "20 18 * * *"
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - "*.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/build.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-ruleset
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install sing-box (latest prerelease)
+        run: |
+          set -euo pipefail
+          VER=$(curl -fsSL "https://api.github.com/repos/SagerNet/sing-box/releases?per_page=50" | jq -r '[.[] | select(.draft == false and .prerelease == true)] | sort_by(.published_at) | last | .tag_name')
+          if [ -z "$VER" ] || [ "$VER" = "null" ]; then echo "no prerelease found" >&2; exit 1; fi
+          VNUM=${VER#v}
+          curl -fsSL "https://github.com/SagerNet/sing-box/releases/download/${VER}/sing-box-${VNUM}-linux-amd64.tar.gz" -o /tmp/sing-box.tar.gz
+          tar -xzf /tmp/sing-box.tar.gz -C /tmp
+          sudo install "/tmp/sing-box-${VNUM}-linux-amd64/sing-box" /usr/local/bin/sing-box
+          sing-box version
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Build rule-sets
+        run: uv run --frozen build.py
+
+      - name: Compile .srs
+        run: |
+          set -euo pipefail
+          for b in geosite-cn geoip-cn geosite-cndns; do
+            sing-box rule-set compile --output "rules/$b.srs" "rules/$b.json"
+          done
+          ls -la rules/
+
+      - name: Commit & push rule-sets if changed
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add rules/
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore: update rule-sets ($(date -u +%Y-%m-%d))"
+            git push
+          fi
