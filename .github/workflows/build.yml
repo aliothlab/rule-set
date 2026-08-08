@@ -65,4 +65,6 @@ jobs:
           else
             git commit -m "chore: update rule-sets ($(date -u +%Y-%m-%d))"
             git push
+            TAG=$(date -u +%Y%m%d)
+            git tag -f "$TAG" && git push -f origin "$TAG"
           fi

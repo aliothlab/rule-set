@@ -12,6 +12,7 @@ GEOIP_V6_URL = "https://raw.githubusercontent.com/gaoyifan/china-operator-ip/ip-
 GEOSITE_CN = ("rules/geosite-cn.json", "rules/geosite-cn.dat", "cn")
 GEOSITE_CNDNS = ("rules/geosite-cndns.json", "rules/geosite-cndns.dat", "cndns")
 GEOIP_JSON, GEOIP_DAT, GEOIP_TAG = "rules/geoip-cn.json", "rules/geoip-cn.dat", "CN"
+GEOIP_TXT = "rules/cn-v{}.txt"
 
 MIN_DOMAINS, MIN_V4, MIN_V6 = 1000, 1000, 100
 RULESET_VERSION = 2
@@ -124,6 +125,10 @@ def parse_cidrs(text):
             nets.append(net)
     return nets
 
+def write_cidr_txt(nets, version):
+    lines = sorted(n for n in nets if n.version == version)
+    write(GEOIP_TXT.format(version), "".join(f"{n}\n" for n in lines))
+    return len(lines)
 
 def build_geosite(url, parser, json_path, dat_path, tag):
     domains = collect(fetch(url), parser)
@@ -142,6 +147,8 @@ def build_geoip():
         raise SystemExit(f"only {len(v4)} IPv4 CIDRs parsed (< {MIN_V4})")
     if len(v6) < MIN_V6:
         raise SystemExit(f"only {len(v6)} IPv6 CIDRs parsed (< {MIN_V6})")
+    txt4, txt6 = write_cidr_txt(v4, 4), write_cidr_txt(v6, 6)
+    print(f"wrote {GEOIP_TXT.format(4)} + {GEOIP_TXT.format(6)}: {txt4} v4 + {txt6} v6 CIDRs")
     nets = sorted(v4 + v6, key=lambda n: (n.version, int(n.network_address), n.prefixlen))
     write_ruleset(GEOIP_JSON, {"ip_cidr": [str(n) for n in nets]})
     write(GEOIP_DAT,
